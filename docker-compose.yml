@@ -1,0 +1,54 @@
+version: "3"
+
+volumes:
+  data:
+networks:
+    kafka-net:
+      driver: bridge
+services:
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: always
+    volumes:
+      - data:/data
+    networks:
+      - kafka-net
+    depends_on:
+      - kafka
+    environment:
+      MINIO_NOTIFY_KAFKA_ENABLE: 'on'
+      MINIO_NOTIFY_KAFKA_BROKERS: "kafka:29092"
+      MINIO_NOTIFY_KAFKA_TOPIC:  'my-notifications'
+      MINIO_NOTIFY_WEBHOOK_QUEUE_DIR: /home/events
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.0.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    networks:
+      - kafka-net
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
